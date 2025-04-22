@@ -1,0 +1,146 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ユーザーモデル
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String?   @unique
+  emailVerified  DateTime?
+  image          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  // アカウント設定
+  darkMode       Boolean   @default(false)
+  // リレーション
+  accounts       Account[]
+  sessions       Session[]
+  threads        Thread[]
+  comments       Comment[]
+  messages       Message[]
+  dictionaryEntries DictionaryEntry[]
+}
+
+// NextAuth用アカウントモデル
+model Account {
+  id                 String   @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth用セッションモデル
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// NextAuth用検証トークンモデル
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// スレッドモデル
+model Thread {
+  id          String    @id @default(cuid())
+  title       String
+  description String    @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  authorId    String
+  viewCount   Int       @default(0)
+  // リレーション
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+}
+
+// コメントモデル
+model Comment {
+  id        String    @id @default(cuid())
+  content   String    @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  authorId  String
+  threadId  String
+  parentId  String?
+  likeCount Int       @default(0)
+  badCount  Int       @default(0)
+  // リレーション
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  thread    Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentToComment", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   Comment[] @relation("CommentToComment")
+}
+
+// チャットメッセージモデル
+model Message {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  authorId  String
+  parentId  String?
+  // リレーション
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Message? @relation("MessageToMessage", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageToMessage")
+}
+
+// 配信者モデル
+model Streamer {
+  id           String   @id @default(cuid())
+  name         String
+  platform     Platform
+  platformId   String
+  thumbnailUrl String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([platform, platformId])
+}
+
+// 配信プラットフォーム列挙型
+enum Platform {
+  YOUTUBE
+  TWITCH
+  KICK
+  TWITCASTING
+}
+
+// 配信辞典モデル
+model DictionaryEntry {
+  id          String   @id @default(cuid())
+  term        String   @unique
+  description String   @db.Text
+  origin      String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  authorId    String
+  // リレーション
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
